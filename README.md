@@ -36,6 +36,7 @@ drwxr-xr-x.  4 root root       34 Apr 14 16:44 rpmbuild
 поддержкой SSL. Для этого необходимо в секцию ./configure файла nginx.spec, добавить опцию<br/>
 сборки --with-openssl=/root/openssl-OpenSSL_1_1_1-stable, в которой содержится путь к исходным<br/>
 кодам OpenSSL.<br/>
+
 1.4. Сборка RPM пакета NGINX:
 ```shell
 [root@rpmtest ~]# rpmbuild -bb rpmbuild/SPECS/nginx.spec
@@ -54,184 +55,63 @@ Installed:
 
 Complete!
 ```
+1.6. Запуск сервиса NGINX и проверка его статуса:
+```shell
+[root@rpmtest ~]# systemctl start nginx
+[root@rpmtest ~]# systemctl status nginx
+● nginx.service - nginx - high performance web server
+   Loaded: loaded (/usr/lib/systemd/system/nginx.service; disabled; vendor preset: disabled)
+   Active: active (running) since Sun 2024-04-14 17:18:15 UTC; 14s ago
+     Docs: http://nginx.org/en/docs/
+  Process: 46855 ExecStart=/usr/sbin/nginx -c /etc/nginx/nginx.conf (code=exited, status=0/SUCCESS)
+ Main PID: 46856 (nginx)
+    Tasks: 5 (limit: 12419)
+   Memory: 5.1M
+   CGroup: /system.slice/nginx.service
+           ├─46856 nginx: master process /usr/sbin/nginx -c /etc/nginx/nginx.conf
+           ├─46857 nginx: worker process
+           ├─46858 nginx: worker process
+           ├─46859 nginx: worker process
+           └─46860 nginx: worker process
 
-1.1. Просмотр всех имеющихся дисков виртуальной машины:
-```shell
-[root@zfs ~]# lsblk
-NAME   MAJ:MIN RM  SIZE RO TYPE MOUNTPOINT
-sda      8:0    0   40G  0 disk 
-`-sda1   8:1    0   40G  0 part /
-sdb      8:16   0  512M  0 disk 
-sdc      8:32   0  512M  0 disk 
-sdd      8:48   0  512M  0 disk 
-sde      8:64   0  512M  0 disk 
-sdf      8:80   0  512M  0 disk 
-sdg      8:96   0  512M  0 disk 
-sdh      8:112  0  512M  0 disk 
-sdi      8:128  0  512M  0 disk 
+Apr 14 17:18:15 rpmtest systemd[1]: Starting nginx - high performance web server...
+Apr 14 17:18:15 rpmtest systemd[1]: Started nginx - high performance web server.
 ```
-1.2. Подготовка пулов из двух дисков в режиме RAID 1:
+1.7. Создание и наполнение своего репозитория:
 ```shell
-[root@zfs ~]# zpool create tank1 /dev/sdb /dev/sdc
-[root@zfs ~]# zpool create tank2 /dev/sdd /dev/sde
-[root@zfs ~]# zpool create tank3 /dev/sdf /dev/sdg
-[root@zfs ~]# zpool create tank4 /dev/sdh /dev/sdi
+[root@rpmtest ~]# mkdir /usr/share/nginx/html/repo
+[root@rpmtest ~]# cp rpmbuild/RPMS/x86_64/nginx-1.20.2-1.el8.ngx.x86_64.rpm /usr/share/nginx/html/repo
+[root@rpmtest ~]# cp percona-orchestrator-3.2.6-2.el8.x86_64.rpm /usr/share/nginx/html/repo
+[root@rpmtest ~]# ll /usr/share/nginx/html/repo
+total 7492
+-rw-r--r--. 1 root root 2444220 Apr 14 17:22 nginx-1.20.2-1.el8.ngx.x86_64.rpm
+-rw-r--r--. 1 root root 5222976 Apr 14 17:22 percona-orchestrator-3.2.6-2.el8.x86_64.rpm
 ```
-1.3. Просмотр списка созданных пулов:
+1.8. Инициализация нового репозитория:
 ```shell
-[root@zfs ~]# zpool list
-NAME    SIZE  ALLOC   FREE  CKPOINT  EXPANDSZ   FRAG    CAP  DEDUP    HEALTH  ALTROOT
-tank1   960M   108K   960M        -         -     0%     0%  1.00x    ONLINE  -
-tank2   960M   108K   960M        -         -     0%     0%  1.00x    ONLINE  -
-tank3   960M   108K   960M        -         -     0%     0%  1.00x    ONLINE  -
-tank4   960M   122K   960M        -         -     0%     0%  1.00x    ONLINE  -
+[root@rpmtest ~]# createrepo /usr/share/nginx/html/repo/
+Directory walk started
+Directory walk done - 2 packages
+Temporary output repo path: /usr/share/nginx/html/repo/.repodata/
+Preparing sqlite DBs
+Pool started (with 5 workers)
+Pool finished
 ```
-1.4. Включение разных алгоритмов сжатия в каждую из файловых систем:
+1.9. Настройка в NGINX доступа к листингу каталога репозитория. В location / файла<br/>
+/etc/nginx/conf.d/default.conf необходимо добавить дерективу autoindex on. После чего<br/>
+проверить корректность конфигурационного файла и перезапустить сервис NGINX.
 ```shell
-[root@zfs ~]# zfs set compression=lzjb tank1
-[root@zfs ~]# zfs set compression=lz4 tank2
-[root@zfs ~]# zfs set compression=gzip-9 tank3
-[root@zfs ~]# zfs set compression=zle tank4
-```
-1.5. Проверка наличия алгоритмов сжатия на файловых системах:
-```shell
-[root@zfs ~]# zfs get all | grep compression
-tank1  compression           lzjb                   local
-tank2  compression           lz4                    local
-tank3  compression           gzip-9                 local
-tank4  compression           zle                    local
-```
-1.6. Заполнение пулов однообразной информацией:
-```shell
-[root@zfs ~]# for i in {1..4}; do wget -P /tank$i https://gutenberg.org/cache/epub/2600/pg2600.converter.log; done
-...
-```
-1.7. Проверка заполнения пулов информацией:
-```shell
-[root@zfs ~]# ll /tank/
-/tank1:
-total 22076
--rw-r--r--. 1 root root 41034307 Apr  2 07:54 pg2600.converter.log
+[root@rpmtest ~]# nginx -t
+nginx: the configuration file /etc/nginx/nginx.conf syntax is ok
+nginx: configuration file /etc/nginx/nginx.conf test is successful
+[root@rpmtest ~]# nginx -s reload
 
-/tank2:
-total 17999
--rw-r--r--. 1 root root 41034307 Apr  2 07:54 pg2600.converter.log
-
-/tank3:
-total 10961
--rw-r--r--. 1 root root 41034307 Apr  2 07:54 pg2600.converter.log
-
-/tank4:
-total 40102
--rw-r--r--. 1 root root 41034307 Apr  2 07:54 pg2600.converter.log
 ```
-1.8. Вывод информации о пулах с целью определения эффективности сжатия:
-```shell
-[root@zfs ~]# zfs list
-NAME    USED  AVAIL     REFER  MOUNTPOINT
-tank1  23.5M   808M     23.3M  /tank1
-tank2  17.8M   814M     17.6M  /tank2
-tank3  10.9M   821M     10.7M  /tank3
-tank4  39.3M   793M     39.2M  /tank4.
-```
-1.9. Вывод информации о степени сжатия файлов на пулах:
-```shell
-[root@zfs ~]# zfs get all | grep compressratio | grep -v ref
-tank1  compressratio         1.90x                  -
-tank2  compressratio         2.22x                  -
-tank3  compressratio         3.65x                  -
-tank4  compressratio         1.00x                  -
-```
-&ensp;&ensp;По итогам работы видно, что самым эффективным алгоритмом по степени сжатия является gzip-9.<br/>
-### 2. Определение настроек пула ###
-2.1. Получение и разархивирование архива для работы:
-```shell
-[root@zfs ~]# wget -O archive.tar.gz --no-check-certificate 'https://drive.usercontent.google.com/download?id=1MvrcEp-WgAQe57aDEzxSRalPAwbNN1Bb&export=download'
-[root@zfs ~]# ll
-total 7124
--rw-------. 1 root root    5570 Apr 30  2020 anaconda-ks.cfg
--rw-r--r--. 1 root root 7275140 Dec  6 15:49 archive.tar.gz
--rw-------. 1 root root    5300 Apr 30  2020 original-ks.cfg
-[root@zfs ~]# tar -xzvf archive.tar.gz 
-zpoolexport/
-zpoolexport/filea
-zpoolexport/fileb
-```
-2.2. Проверка возможности импортирования содержимого архива в пул:
-```shell
-[root@zfs ~]# zpool import -d zpoolexport/
-   pool: otus
-     id: 6554193320433390805
-  state: ONLINE
- action: The pool can be imported using its name or numeric identifier.
- config:
 
-	otus                         ONLINE
-	  mirror-0                   ONLINE
-	    /root/zpoolexport/filea  ONLINE
-	    /root/zpoolexport/fileb  ONLINE
-```
-2.3. Осуществление импорта скачанного пула и просмотр его состояния:
-```shell
-[root@zfs ~]# zpool import -d zpoolexport/ otus
-[root@zfs ~]# zpool status otus
-  pool: otus
- state: ONLINE
-  scan: none requested
-config:
 
-	NAME                         STATE     READ WRITE CKSUM
-	otus                         ONLINE       0     0     0
-	  mirror-0                   ONLINE       0     0     0
-	    /root/zpoolexport/filea  ONLINE       0     0     0*
-	    /root/zpoolexport/fileb  ONLINE       0     0     0
 
-errors: No known data errors
 
-[root@zfs ~]# zfs getavailable otus
-NAME  PROPERTY   VALUE  SOURCE
-otus  available  350M   -
 
-[root@zfs ~]# zfs get readonly otus
-NAME  PROPERTY  VALUE   SOURCE
-otus  readonly  off     default
-
-[root@zfs ~]# zfs get recordsize otus
-NAME  PROPERTY    VALUE    SOURCE
-otus  recordsize  128K     local
-
-[root@zfs ~]# zfs get compression otus
-NAME  PROPERTY     VALUE     SOURCE
-otus  compression  zle       local
-
-[root@zfs ~]# zfs get checksum otus
-NAME  PROPERTY  VALUE      SOURCE
-otus  checksum  sha256     local
-```
-### 3. Работа со снапшотом, поиск сообщения от преподавателя ###
-3.1. Получение файла для работы:
-```shell
-wget -O otus_task2.file --no-check-certificate https://drive.usercontent.google.com/download?id=1wgxjih8YZ-cqLqaZVa0lA3h3Y029c3oI&export=download
-[root@zfs ~]# ll
-total 12432
--rw-------. 1 root root    5570 Apr 30  2020 anaconda-ks.cfg
--rw-r--r--. 1 root root 7275140 Dec  6 15:49 archive.tar.gz
--rw-------. 1 root root    5300 Apr 30  2020 original-ks.cfg
--rw-r--r--. 1 root root 5432736 Dec  6 15:22 otus_task2.file
-drwxr-xr-x. 2 root root      32 May 15  2020 zpoolexport
-````
-3.2. Восстановление файловой системы из снапшота:
-```shell
-[root@zfs ~]# zfs receive otus/test@today < otus_task2.file 
-```
-3.3. Поиск заданного файла по имени и просмотр его содержимого:
-```shell
-[root@zfs ~]# find /otus/test -name "secret_message"
-/otus/test/task1/file_mess/secret_message
-
-[root@zfs ~]# cat /otus/test/task1/file_mess/secret_message
-https://otus.ru/lessons/linux-hl/
-```
 ### 4. Скрипт конфигурирования сервера ###
 ```shell
 #!/bin/bash
