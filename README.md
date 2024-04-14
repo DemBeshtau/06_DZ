@@ -120,10 +120,33 @@ nginx: configuration file /etc/nginx/nginx.conf test is successful
 </pre><hr></body>
 </html>
 ```
+1.11. Добавление репозитория в /etc/yum.repos.d/otus.repo:
+```shell
+[root@rpmtest ~]# cat >> /etc/yum.repos.d/otus.repo << EOF
+[otus]
+name=otus-linux
+baseurl=http://localhost/repo
+gpgcheck=0
+enabled=1
+EOF
+```
+1.12. Проверка подключения репозитория и наличия содержимого:
+```shell
+[root@rpmtest ~]# yum repolist enabled | grep otus
+Failed to set locale, defaulting to C.UTF-8
+otus                            otus-linux
+[root@rpmtest ~]# yum list | grep otus
+Failed to set locale, defaulting to C.UTF-8
+otus-linux                                      1.3 MB/s | 2.8 kB     00:00    
+percona-orchestrator.x86_64                            2:3.2.6-2.el8                                          otus        
+```
+&ensp;&ensp;&ensp;Стоит отметить что название пакета NGINX, хранящегося в данном репозитории не выводится,<br/>
+так как данные исходных репозиториев CentOS перекрывают данные локального репозитория. Чтобы проверить данный<br/>
+факт, необходимо времено переместить файлы репозиториев CentOS и повторно проверить содержимое локального<br/> 
+репозитория:
+```shell
 
-
-
-
+```
 
 ### 4. Скрипт конфигурирования сервера ###
 ```shell
