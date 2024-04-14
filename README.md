@@ -107,6 +107,19 @@ nginx: configuration file /etc/nginx/nginx.conf test is successful
 [root@rpmtest ~]# nginx -s reload
 
 ```
+1.10. Проверка работы веб-страницы с листингом каталога репозитория:
+```shell
+[root@rpmtest ~]# curl -a http://localhost/repo/
+<html>
+<head><title>Index of /repo/</title></head>
+<body>
+<h1>Index of /repo/</h1><hr><pre><a href="../">../</a>
+<a href="repodata/">repodata/</a>                                          14-Apr-2024 17:26                   -
+<a href="nginx-1.20.2-1.el8.ngx.x86_64.rpm">nginx-1.20.2-1.el8.ngx.x86_64.rpm</a>                  14-Apr-2024 17:22             2444220
+<a href="percona-orchestrator-3.2.6-2.el8.x86_64.rpm">percona-orchestrator-3.2.6-2.el8.x86_64.rpm</a>        14-Apr-2024 17:22             5222976
+</pre><hr></body>
+</html>
+```
 
 
 
