@@ -7,10 +7,54 @@
 &ensp;&ensp;Предварительно установленное и настроенное ПО:<br/>
 &ensp;&ensp;&ensp;Hashicorp Vagrant (https://www.vagrantup.com/downloads);<br/>
 &ensp;&ensp;&ensp;Oracle VirtualBox (https://www.virtualbox.org/wiki/Linux_Downloads);<br/>
-&ensp;&ensp;Все действия проводились с использованием Vagrant 2.4.0, VirtualBox 7.0.14 <br/>
+&ensp;&ensp;&ensp;Все действия проводились с использованием Vagrant 2.4.0, VirtualBox 7.0.14 <br/>
 &ensp;&ensp;и образа CentOS 8 версии 2011.0.
 ### Ход решения ###
-### 1. Определение алгоритма с наилучшим сжатием ###
+### 1. Сборка пакета NGINX с поддержкой openssl ###
+&ensp;&ensp;Установка ПО необходимого для сборки пакетов и загрузка исходных кодов программ<br/> 
+производится во время запуска образа операционной системы.<br/>
+1.1. Установка SRPM пакета NGINX, после которой создаётся дерево каталогов для сборки rpmbuild:<br/>
+```shell
+[root@rpmtest ~]# rpm -i nginx-1.20.2-1.el7.ngx.src.rpm 
+warning: nginx-1.20.2-1.el7.ngx.src.rpm: Header V4 RSA/SHA1 Signature, key ID 7bd9bf62: NOKEY
+[root@rpmtest ~]# ll
+total 17832
+-rw-r--r--.  1 root root 11924330 Apr 14 16:43 OpenSSL_1_1_1-stable.zip
+-rw-------.  1 root root     5207 Dec  4  2020 anaconda-ks.cfg
+-rw-r--r--.  1 root root  1082461 Apr 14 16:43 nginx-1.20.2-1.el7.ngx.src.rpm
+drwxr-xr-x. 19 root root     4096 Sep 11  2023 openssl-OpenSSL_1_1_1-stable
+-rw-------.  1 root root     5006 Dec  4  2020 original-ks.cfg
+-rw-r--r--.  1 root root  5222976 Apr 14 16:43 percona-orchestrator-3.2.6-2.el8.x86_64.rpm
+drwxr-xr-x.  4 root root       34 Apr 14 16:44 rpmbuild
+```
+1.2. Разрешение зависимостей пакета NGINX:<br/>
+```shell
+[root@rpmtest ~]# yum-builddep rpmbuild/SPECS/nginx.spec
+...
+```
+1.3. Редактирование spec-файла NGINX для того, что бы соответствующий пакет собирался с<br/> 
+поддержкой SSL. Для этого необходимо в секцию ./configure файла nginx.spec, добавить опцию<br/>
+сборки --with-openssl=/root/openssl-OpenSSL_1_1_1-stable, в которой содержится путь к исходным<br/>
+кодам OpenSSL.<br/>
+1.4. Сборка RPM пакета NGINX:
+```shell
+[root@rpmtest ~]# rpmbuild -bb rpmbuild/SPECS/nginx.spec
+...
+[root@rpmtest ~]# ll rpmbuild/RPMS/x86_64/
+total 4864
+-rw-r--r--. 1 root root 2444220 Apr 14 17:11 nginx-1.20.2-1.el8.ngx.x86_64.rpm
+-rw-r--r--. 1 root root 2533336 Apr 14 17:11 nginx-debuginfo-1.20.2-1.el8.ngx.x86_64.rpm
+```
+1.5. Установка пакета NGINX:
+```shell
+[root@rpmtest ~]# yum localinstall -y rpmbuild/RPMS/x86_64/nginx-1.20.2-1.el8.ngx.x86_64.rpm
+...
+Installed:
+  nginx-1:1.20.2-1.el8.ngx.x86_64                                                                                                        
+
+Complete!
+```
+
 1.1. Просмотр всех имеющихся дисков виртуальной машины:
 ```shell
 [root@zfs ~]# lsblk
