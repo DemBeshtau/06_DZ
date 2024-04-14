@@ -1,6 +1,6 @@
 # Управление пакетами. Дистрибьюция софта. #
 1. Создать свой RPM пакет.<br/>
-2. Создать свой репозитарий и разместить там ранее собранный RPM.<br/>
+2. Создать свой репозиторий и разместить там ранее собранный RPM.<br/>
 3. Реализовать вышеуказанное в Vagrant, либо развернуть через NGINX и дать ссылку на репозиторий.<br/>
 ### Исходные данные ###
 &ensp;&ensp;ПК на Linux c 8 ГБ ОЗУ или виртуальная машина с включенной Nested Virtualization.<br/>
@@ -77,7 +77,7 @@ Complete!
 Apr 14 17:18:15 rpmtest systemd[1]: Starting nginx - high performance web server...
 Apr 14 17:18:15 rpmtest systemd[1]: Started nginx - high performance web server.
 ```
-1.7. Создание и наполнение своего репозитория:
+1.7. Создание и наполнение локального репозитория:
 ```shell
 [root@rpmtest ~]# mkdir /usr/share/nginx/html/repo
 [root@rpmtest ~]# cp rpmbuild/RPMS/x86_64/nginx-1.20.2-1.el8.ngx.x86_64.rpm /usr/share/nginx/html/repo
@@ -87,7 +87,7 @@ total 7492
 -rw-r--r--. 1 root root 2444220 Apr 14 17:22 nginx-1.20.2-1.el8.ngx.x86_64.rpm
 -rw-r--r--. 1 root root 5222976 Apr 14 17:22 percona-orchestrator-3.2.6-2.el8.x86_64.rpm
 ```
-1.8. Инициализация нового репозитория:
+1.8. Инициализация локального репозитория:
 ```shell
 [root@rpmtest ~]# createrepo /usr/share/nginx/html/repo/
 Directory walk started
@@ -140,36 +140,38 @@ Failed to set locale, defaulting to C.UTF-8
 otus-linux                                      1.3 MB/s | 2.8 kB     00:00    
 percona-orchestrator.x86_64                            2:3.2.6-2.el8                                          otus        
 ```
-&ensp;&ensp;&ensp;Стоит отметить что название пакета NGINX, хранящегося в данном репозитории не выводится,<br/>
-так как данные исходных репозиториев CentOS перекрывают данные локального репозитория. Чтобы проверить данный<br/>
-факт, необходимо времено переместить файлы репозиториев CentOS и повторно проверить содержимое локального<br/> 
-репозитория:
-```shell
+&ensp;&ensp;&ensp;Стоит отметить что название пакета NGINX, хранящегося в локальном репозитории не выводится,<br/>
+так как эта информация перекрывается данными репозиториев CentOS.<br/>
 
+1.13. Установка пакета из локального репозитория:
+```shell
+[root@rpmtest ~]# yum install -y percona-orchestrator.x86_64
+...
+Installed:
+  jq-1.5-12.el8.x86_64          oniguruma-6.8.2-2.el8.x86_64          percona-orchestrator-2:3.2.6-2.el8.x86_64         
+
+Complete!
 ```
 
-### 4. Скрипт конфигурирования сервера ###
+### 2. Скрипт конфигурирования сервера ###
 ```shell
 #!/bin/bash
 
+#!/bin/bash
 sudo -i
-# установка репозитария zfs
-yum install -y http://download.zfsonlinux.org/epel/zfs-release.el7_8.noarch.rpm
-# импорт gpg ключей
-rpm --import /etc/pki/rpm-gpg/RPM-GPG-KEY-zfsonlinux
-# установка необходимого для ПО
-yum install -y epel-release kernel-devel wget
-# для того, чтобы при установке пакета zfs собирался соответствующий модуль ядра
-# необходимо создать новую ссылку /lib/modules/`uname -r`/build на каталог сборки
-rm -f /lib/modules/`uname -r`/build
-ln -s /usr/src/kernels/* /lib/modules/`uname -r`/build
-# Смена zfs репозитария 
-yum-config-manager --disable zfs
-yum-config-manager --enable zfs-kmod
-# установка zfs
-yum install -y zfs
-# загрузка модуля ядра zfs
-modprobe zfs
-# добавление модуля ядра zfs в автозагрузку
-sudo echo "zfs" >> /etc/modules-load.d/zfs.conf
+# блок команд прописывает в репозиториях CentOS пути к работающим зеркалам
+sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-*
+sed -i 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-*
+# установка необходимого для выполнения задания ПО
+yum install -y redhat-lsb-core wget nano rpmdevtools rpm-build createrepo yum-utils gcc
+# получение необходимых пакетов и исходных кодов
+wget https://nginx.org/packages/centos/7/SRPMS/nginx-1.20.2-1.el7.ngx.src.rpm
+wget https://github.com/openssl/openssl/archive/refs/heads/OpenSSL_1_1_1-stable.zip
+wget https://downloads.percona.com/downloads/percona-distribution-mysql-ps/percona-distribution-mysql-ps-8.0.28/binary/redhat/8/x86_64/percona-orchestrator-3.2.6-2.el8.x86_64.rpm
+# копирование загруженных пакетов и исходников в /root
+cp /home/vagrant/* /root && cd ~
+# распаковка исходных кодов OpenSSL
+unzip OpenSSL_1_1_1-stable.zip
+# добавление пользователя builder, необходимого для сборки SRPM пакета NGINX
+useradd builder 
 ```
